@@ -1,0 +1,157 @@
+== 为什么使用线程池
+* 降低资源的消耗
+
+通过重复利用已经创建好的线程降低线程的创建和销毁带来的损耗
+
+* 提高响应速度
+
+因为线程池中的线程数没有超过线程池的最大上限时，有的线程处于等待分配任务的状态，当任务来时无需创建新的线程就能执行
+
+* 提高线程的可管理性
+
+线程池会根据当前系统特点对池内的线程进行优化处理，减少创建和销毁线程带来的系统开销。无限的创建和销毁线程不仅消耗系统资源，还降低系统的稳定性，使用线程池进行统一-分配
+
+== 线程池状态
+
+.线程池状态流转
+image:./design/Thread_Status.png[ title="Thread_Status.png", height="200", link="./design/Thread_Status.png",align="center",float="center"]
+
+== 线程池ThreadPoolExecutor
+
+.执行顺序
+image:./design/ThreadPoolExecutor_Flow.png[ title="ThreadPoolExecutor_Flow.png", height="200", link="./design/ThreadPoolExecutor_Flow.png",align="center",float="center"]
+
+=== 案例
+
+.线程池配置
+----
+corePoolSize=2
+maximumPoolSize=10
+keepAliveTime=10
+unit=TimeUnit.SECONDS
+workQueue=new LinkedBlockingDeque<>(50)
+RejectedExecutionHandler= new ThreadPoolExecutor.AbortPolicy()
+----
+100个并发任务，2个任务会立即执行，50个进入阻塞队列，新开10-2=8个线程执行，剩余100-2-50-8=40个任务触发拒绝策略"AbortPolicy异常拒绝执行"
+
+
+=== shutdown VS shutdownNow
+
+`*shutdown：*` 执行时线程池终止接收新任务，并且会将任务队列中的任务处理完；    +
+`*shutdownNow：*` 执行时线程池终止接收新任务，并且会给终止执行任务队列中的任务。
+
+.CompletableFutureDemo.java
+[source,java,tabsize=2]
+----
+include::demo/ThreadPoolExecutorDemo.java[]
+----
+
+.shutdown执行结果
+----
+15:28:39.668 [main] INFO test.thread.ThreadPoolExecutorDemo - 触发拒绝策略:java.util.concurrent.FutureTask@56a6d5a6[Not completed, task = java.util.concurrent.Executors$RunnableAdapter@18ce0030[Wrapped task = CRunnable{busiLabel='任务6'}]]
+15:28:39.673 [main] INFO test.thread.ThreadPoolExecutorDemo - shutdown()终止线程池{}
+15:28:40.659 [CUSTOMER_THREAD] INFO test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第1个任务完成
+15:28:41.660 [CUSTOMER_THREAD] INFO test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第2个任务完成
+15:28:43.665 [CUSTOMER_THREAD] INFO test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第3个任务完成
+15:28:44.661 [CUSTOMER_THREAD] INFO test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第5个任务完成
+15:28:45.662 [CUSTOMER_THREAD] INFO test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第4个任务完成
+----
+
+.shutdownNow执行结果
+----
+15:30:14.043 [main] INFO test.thread.ThreadPoolExecutorDemo - 触发拒绝策略:java.util.concurrent.FutureTask@56a6d5a6[Not completed, task = java.util.concurrent.Executors$RunnableAdapter@18ce0030[Wrapped task = CRunnable{busiLabel='任务6'}]]
+15:30:14.048 [main] INFO test.thread.ThreadPoolExecutorDemo - 触发拒绝策略:java.util.concurrent.FutureTask@60d8c9b7[Not completed, task = java.util.concurrent.Executors$RunnableAdapter@48aaecc3[Wrapped task = CRunnable{busiLabel='任务7'}]]
+15:30:14.048 [main] INFO test.thread.ThreadPoolExecutorDemo - 触发拒绝策略:java.util.concurrent.FutureTask@7c0c77c7[Not completed, task = java.util.concurrent.Executors$RunnableAdapter@7adda9cc[Wrapped task = CRunnable{busiLabel='任务8'}]]
+15:30:14.049 [main] INFO test.thread.ThreadPoolExecutorDemo - shutdownNow()终止线程池
+15:30:14.058 [CUSTOMER_THREAD] ERROR test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第2个任务异常:sleep interrupted
+java.lang.InterruptedException: sleep interrupted
+	at java.base/java.lang.Thread.sleep(Native Method)
+	at test.thread.ThreadPoolExecutorDemo$2.run(ThreadPoolExecutorDemo.java:58)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run$$$capture(FutureTask.java:264)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+15:30:14.058 [CUSTOMER_THREAD] ERROR test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第1个任务异常:sleep interrupted
+java.lang.InterruptedException: sleep interrupted
+	at java.base/java.lang.Thread.sleep(Native Method)
+	at test.thread.ThreadPoolExecutorDemo$2.run(ThreadPoolExecutorDemo.java:58)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run$$$capture(FutureTask.java:264)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+15:30:14.058 [CUSTOMER_THREAD] ERROR test.thread.ThreadPoolExecutorDemo - 线程CUSTOMER_THREAD执行第5个任务异常:sleep interrupted
+java.lang.InterruptedException: sleep interrupted
+	at java.base/java.lang.Thread.sleep(Native Method)
+	at test.thread.ThreadPoolExecutorDemo$2.run(ThreadPoolExecutorDemo.java:58)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run$$$capture(FutureTask.java:264)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+----
+
+== CompletableFuture
+
+.ThreadPoolExecutorDemo.java
+[source,java,tabsize=2]
+----
+include::demo/CompletableFutureDemo.java[]
+----
+
+=== applyToEither VS acceptEither VS runAfterEither
+
+`*applyToEither：*` 两个任务相比较，对先执行完的任务结果进行下一步处理，传递任务执行结果，支持返回处理结果。   +
+`*acceptEither：*` 两个任务相比较，对先执行完的任务结果进行下一步处理，传递任务执行结果，不支持返回处理结果。   +
+`*runAfterEither：*` 两个任务相比较，任何一个任务执行完成，则执行，不传递任务执行结果，也不返回结果。   +
+
+
+=== thenApply VS thenAccept VS thenRun VS thenCompose
+
+`*thenApply（返回）：*` 任务执行完成后进行二次消费，同时传递任务执行结果做为入参，二次消费支持返回结果。 +
+`*thenCompose（返回）：*` 任务执行完成后继续执行下一个任务，同时传递上一个任务执行结果做为入参，支持返回结果    +
+`*thenAccept（不返回）：*` 任务执行完成后进行二次消费，同时传递任务执行结果做为入参，二次消费不支持返回结果。 +
+`*thenRun（不返回）：*` 任务执行完成后进行二次消费，不传递任务执行结果，不返回结果。 +
+
+=== thenAcceptBoth VS thenCombine
+
+`*thenAcceptBoth：*` 两个任务执行完成后进行二次消费，同时传递两个任务的执行结果做为入参，二次消费不支持返回结果。 +
+`*thenCombine：*` 两个任务执行完成后进行二次消费，同时传递两个任务的执行结果做为入参，二次消费支持返回结果。 +
+
+=== exceptionally VS whenComplete VS handle
+
+`*exceptionally：*` 任务正常执行时返回任务执行结果；任务执行异常时传递异常，支持新的返回结果 +
+`*whenComplete：*` 相当于try catch finally语法的finally块，如果任务执行成功，返回值是任务的执行结果；任务执行异常，传递异常信息，结果调用get方法抛出异常 +
+`*handle：*` 与whenComplete一致，不同的是handle的返回值是handle方法处理的结果。 +
+
+
+=== allOf无限期的等待
+CompletableFuture.allOf()方法等待所有任务执行完，如果采用拒绝策略（包括自定义的不抛异常）或任务执行异常没有捕获，则allOf()方法会无限期的等待下去，即使allof()设置了orTimeout(2000, TimeUnit.MILLISECONDS)也不会超时结束。
+
+.采用拒绝策略且策略必须是抛出异常(使用try catch+CompletableFuture.completedFuture(new Object())处理异常)，如果不抛异常将会无限期等待
+[source,java,tabsize=2]
+----
+CompletableFuture[] futures = IntStream.range(1, 6).mapToObj(item -> {
+    try {
+        return CompletableFuture.supplyAsync(() -> {
+            return label;
+        }, executor);
+    }catch (Exception e){
+        return CompletableFuture.completedFuture(new Object());
+    }
+}).toArray(CompletableFuture[]::new);
+----
+
+.任务执行异常没有捕获导致allOf()无限期等待解决方案（使用exceptionally处理异常）
+[source,java,tabsize=2]
+----
+CompletableFuture<Integer> future = CompletableFuture.supplyAsync(() -> {
+    return 1;
+}, executor).exceptionally(e -> {
+    return null;
+});
+----
